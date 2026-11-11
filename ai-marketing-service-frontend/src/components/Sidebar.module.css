@@ -1,0 +1,75 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  min-height: 100vh;
+  background: #111827;
+  color: #d1d5db;
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid #1f2937;
+}
+
+.brandIcon {
+  font-size: 1.2rem;
+  color: #818cf8;
+}
+
+.brandName {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f9fafb;
+  letter-spacing: 0.05em;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 10px;
+  flex: 1;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #9ca3af;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.navItem:hover {
+  background: #1f2937;
+  color: #f3f4f6;
+}
+
+.active {
+  background: #1e1b4b;
+  color: #a5b4fc;
+}
+
+.navIcon {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.navLabel {
+  flex: 1;
+}
+
+.bottom {
+  padding: 10px 10px 20px;
+  border-top: 1px solid #1f2937;
+}

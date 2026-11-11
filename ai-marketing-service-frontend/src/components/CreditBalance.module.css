@@ -1,0 +1,21 @@
+.container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #fefce8;
+  border: 1px solid #fde68a;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #92400e;
+}
+
+.icon {
+  font-size: 0.7rem;
+  color: #d97706;
+}
+
+.label {
+  white-space: nowrap;
+}
