@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: ai-marketing-dynamodb
+    ports:
+      - "8001:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    volumes:
+      - dynamodb_data:/home/dynamodblocal/data
+
+  api:
+    build: .
+    container_name: ai-marketing-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DYNAMODB_ENDPOINT_URL=http://dynamodb-local:8000
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - dynamodb-local
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  dynamodb_data:

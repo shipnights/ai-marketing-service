@@ -1,0 +1,14 @@
+# Backend test dependencies (DynamoDB is mocked with moto)
+pytest>=8.0.0,<9
+pytest-cov>=4.0.0,<6
+pytest-asyncio>=0.24.0,<1
+httpx>=0.28.0,<1
+respx>=0.21.0,<1
+freezegun>=1.5.0,<2
+moto[dynamodb]>=5.0.0,<6
+boto3>=1.35.0,<2
+
+# System under test — installed in editable mode in CI
+# pip install -e ../ai-marketing-service-backend
+
+# E2E (Playwright) is managed by package.json
