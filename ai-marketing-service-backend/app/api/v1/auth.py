@@ -20,7 +20,13 @@ from app.auth.jwt import (
 from app.auth.password import hash_password, verify_password
 from app.db.teams import add_team_member, create_team
 from app.db.tokens import revoke_refresh_token
-from app.db.users import create_user, get_user_by_email, get_user_by_id, update_user
+from app.db.users import (
+    bump_token_version,
+    create_user,
+    get_user_by_email,
+    get_user_by_id,
+    update_user,
+)
 from app.responses import success_response
 
 logger = logging.getLogger(__name__)
@@ -192,10 +198,30 @@ def refresh_tokens(body: RefreshBody) -> dict[str, Any]:
     if not user:
         raise HTTPException(status_code=404, detail={"message": "User not found.", "code": "NOT_FOUND"})
 
-    # Revoke old JTI and issue fresh pair
+    # Reject refresh tokens from a previous token generation (password reset,
+    # logout-all). Mirrors the access-token check in deps._reject_stale_token.
+    stale = int(payload.get("tv", 1)) != int(user.get("token_version", 1))
+    valid_after = user.get("tokens_valid_after")
+    if valid_after is not None and int(payload.get("iat", 0)) < int(valid_after):
+        stale = True
+    if stale:
+        raise HTTPException(
+            status_code=401,
+            detail={"message": "Token no longer valid.", "code": "TOKEN_REVOKED"},
+        )
+
+    # Rotate: revoke old JTI, then issue a fresh pair. The revocation write
+    # MUST persist before new tokens are handed out - otherwise the old token
+    # stays usable alongside the new one (fail closed on write errors).
     jti = payload.get("jti")
-    if jti:
-        revoke_refresh_token(jti)
+    if jti and not revoke_refresh_token(jti):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Could not rotate token. Please try again.",
+                "code": "SERVICE_UNAVAILABLE",
+            },
+        )
 
     return success_response(_token_pair(user))
 
@@ -208,13 +234,23 @@ class LogoutBody(BaseModel):
 
 @router.post("/logout")
 def logout(body: LogoutBody) -> dict[str, Any]:
-    """Revoke the provided refresh token."""
+    """Revoke the provided refresh token.
+
+    Idempotent for invalid/already-revoked tokens (200), but a failed
+    revocation WRITE is a 503: we must never tell the client it is logged
+    out while its refresh token is still alive (fail closed).
+    """
     payload = decode_refresh_token(body.refresh_token)
     if payload:
         jti = payload.get("jti")
-        if jti:
-            revoke_refresh_token(jti)
-    # Always return success — idempotent
+        if jti and not revoke_refresh_token(jti):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "message": "Could not revoke token. Please try again.",
+                    "code": "SERVICE_UNAVAILABLE",
+                },
+            )
     return success_response(None, "Logged out")
 
 
@@ -271,13 +307,19 @@ def reset_password(body: ResetPasswordBody) -> dict[str, Any]:
     """Reset user password using a temp token from the forgot-password flow."""
     payload = _require_temp_token(body.token)
     user_id = payload[CLAIM_USER_ID]
-    update_user(
-        user_id,
-        {
-            "password_hash": hash_password(body.new_password),
-            "token_version": 2,  # invalidate all outstanding tokens
-        },
-    )
+    updated = update_user(user_id, {"password_hash": hash_password(body.new_password)})
+    # Invalidate every outstanding access/refresh token: atomically increment
+    # token_version (1 -> 2 -> 3 -> ... on repeated resets) and stamp
+    # tokens_valid_after so tokens issued before this moment are rejected.
+    bumped = bump_token_version(user_id)
+    if updated is None or bumped is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "Could not reset password. Please try again.",
+                "code": "SERVICE_UNAVAILABLE",
+            },
+        )
     return success_response(None, "Password reset successfully")
 
 

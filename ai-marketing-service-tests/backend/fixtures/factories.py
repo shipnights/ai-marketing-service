@@ -152,3 +152,99 @@ def make_social_account(**overrides) -> dict:
         "connected_at": _now(),
         **overrides,
     }
+
+
+# ---------------------------------------------------------------------------
+# AI pipeline entities (shapes from MARKETING_PLATFORM_LOGIC.md section 2-5 and
+# the key layout documented in scripts/create_tables.py)
+# ---------------------------------------------------------------------------
+
+def make_audience_analysis(project_id: str, **overrides) -> dict:
+    """Return an audience-analysis result dict (Claude output, section 2.1)."""
+    return {
+        "project_id": project_id,
+        "primary_audience": {
+            "description": "Urban professionals aged 25-34",
+            "psychographics": ["time-poor", "quality-focused"],
+            "behaviors": ["mobile-first", "evening scrolling"],
+            "platforms_used": ["instagram", "tiktok"],
+        },
+        "secondary_audience": {
+            "description": "Students aged 18-24",
+            "psychographics": ["price-sensitive"],
+            "behaviors": ["short-form video"],
+            "platforms_used": ["tiktok"],
+        },
+        "messaging_angles": ["pain point angle", "aspiration angle"],
+        "best_platforms": ["instagram", "tiktok"],
+        "best_content_types": ["short video", "carousel", "story"],
+        "recommended_posting_times": {"instagram": ["18:00", "20:00"], "tiktok": ["19:00"]},
+        **overrides,
+    }
+
+
+def make_idea(project_id: str, status: str = "approved", **overrides) -> dict:
+    """Return a CONTENT_TABLE idea item (pk=PROJECT#{id}, sk=IDEA#{idea_id})."""
+    idea_id = overrides.pop("idea_id", f"idea-{_uid()}")
+    return {
+        "pk": f"PROJECT#{project_id}",
+        "sk": f"IDEA#{idea_id}",
+        "idea_id": idea_id,
+        "project_id": project_id,
+        "title": overrides.pop("title", "Behind the Scenes Series"),
+        "concept": overrides.pop("concept", "Show how the product is made"),
+        "hook": overrides.pop("hook", "You won't believe step 3"),
+        "platforms": overrides.pop("platforms", ["instagram", "tiktok"]),
+        "content_type": overrides.pop("content_type", "video_series"),
+        "estimated_impact": overrides.pop("estimated_impact", "high"),
+        "tone": overrides.pop("tone", "casual"),
+        "reasoning": overrides.pop("reasoning", "Authenticity resonates with this audience"),
+        "status": status,
+        "created_at": _now(),
+        "updated_at": _now(),
+        **overrides,
+    }
+
+
+def make_schedule(post_id: str, team_id: str, scheduled_at: str | None = None, **overrides) -> dict:
+    """Return a SCHEDULE_TABLE item (pk=TEAM#{team_id}, sk=SCHEDULE#{scheduled_at}#{post_id}).
+
+    `scheduled_at` defaults to one day from now (UTC, ISO-8601), so the
+    sort key orders schedules chronologically.
+    """
+    from datetime import timedelta
+
+    when = scheduled_at or (datetime.now(UTC) + timedelta(days=1)).replace(microsecond=0).isoformat()
+    return {
+        "pk": f"TEAM#{team_id}",
+        "sk": f"SCHEDULE#{when}#{post_id}",
+        "post_id": post_id,
+        "team_id": team_id,
+        "scheduled_at": when,
+        "platform": overrides.pop("platform", "instagram"),
+        "status": overrides.pop("status", "scheduled"),
+        "created_at": _now(),
+        **overrides,
+    }
+
+
+def make_media(project_id: str, **overrides) -> dict:
+    """Return a CONTENT_TABLE media item (pk=PROJECT#{id}, sk=MEDIA#{media_id})."""
+    media_id = overrides.pop("media_id", f"media-{_uid()}")
+    kind = overrides.pop("kind", "image")
+    return {
+        "pk": f"PROJECT#{project_id}",
+        "sk": f"MEDIA#{media_id}",
+        "media_id": media_id,
+        "project_id": project_id,
+        "kind": kind,                                   # image | video
+        "source": overrides.pop("source", "generated"),  # generated | uploaded
+        "provider": overrides.pop("provider", "higgsfield"),
+        "url": overrides.pop("url", f"http://localhost:8000/uploads/{media_id}.jpg"),
+        "width": overrides.pop("width", 1080),
+        "height": overrides.pop("height", 1350),
+        "duration_s": overrides.pop("duration_s", None if kind == "image" else 15),
+        "file_size": overrides.pop("file_size", 245_760),
+        "created_at": _now(),
+        **overrides,
+    }

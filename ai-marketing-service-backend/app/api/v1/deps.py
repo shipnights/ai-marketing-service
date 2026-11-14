@@ -27,6 +27,36 @@ class CurrentUser:
     email: str
 
 
+def _reject_stale_token(payload: dict) -> None:
+    """Raise 401 if the token was issued before the user's current
+    token generation (password reset, logout-all, ...).
+
+    Two complementary checks against the stored user record:
+      - `tv` claim must equal the user's current token_version;
+      - `iat` must not predate user's tokens_valid_after (epoch seconds).
+    A missing user record is also a 401: tokens must not outlive their user.
+    """
+    from app.db.users import get_user_by_id
+
+    user = get_user_by_id(str(payload.get(CLAIM_USER_ID) or payload.get("sub")))
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail={"message": "Invalid or expired token", "code": "INVALID_TOKEN"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    stale = int(payload.get(CLAIM_TOKEN_VERSION, 1)) != int(user.get("token_version", 1))
+    valid_after = user.get("tokens_valid_after")
+    if valid_after is not None and int(payload.get("iat", 0)) < int(valid_after):
+        stale = True
+    if stale:
+        raise HTTPException(
+            status_code=401,
+            detail={"message": "Token no longer valid", "code": "TOKEN_REVOKED"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 def get_current_user(
     x_user_id: str | None = Header(None, alias="X-User-Id"),
     x_team_id: str | None = Header(None, alias="X-Team-Id"),
@@ -74,6 +104,10 @@ def get_current_user(
             status_code=401,
             detail={"message": "Invalid token payload", "code": "INVALID_TOKEN"},
         )
+
+    # Reject tokens issued before the user's current token generation
+    # (password reset / logout-all bump token_version + tokens_valid_after).
+    _reject_stale_token(payload)
 
     return CurrentUser(user_id=str(user_id), team_id=str(team_id), email=str(email))
 

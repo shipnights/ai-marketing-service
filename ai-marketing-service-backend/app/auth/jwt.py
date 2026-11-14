@@ -41,7 +41,9 @@ def _encode_token(payload: dict[str, Any], expire_delta: timedelta) -> str:
 
 
 def create_access_token(user_id: str, team_id: str, email: str, token_version: int = 1) -> str:
-    """Create a 7-day access token containing user_id and team_id."""
+    """Create a short-lived access token (JWT_EXPIRE_MINUTES, default 30)
+    containing user_id and team_id. Long-lived sessions are provided by
+    refresh-token rotation, not by long access-token expiry."""
     return _encode_token(
         {
             "sub": user_id,

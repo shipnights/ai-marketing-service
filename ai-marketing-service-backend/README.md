@@ -183,7 +183,7 @@ CORS_ORIGINS=http://localhost:3000
 # Auth
 JWT_SECRET=your-secret-min-32-chars
 JWT_ALGORITHM=HS256
-JWT_EXPIRE_MINUTES=10080           # 7 days
+JWT_EXPIRE_MINUTES=30              # short-lived access tokens; sessions persist via refresh rotation
 
 # API Key guard
 REQUIRE_API_KEY=false

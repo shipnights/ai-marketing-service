@@ -7,10 +7,12 @@ Run backend from the repo root with:
 """
 
 import os
+import tempfile
 import uuid
 
 import boto3
 import pytest
+import respx
 from moto import mock_aws
 
 # Force test env before any app import.
@@ -22,13 +24,20 @@ os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 # Point the app at moto's in-memory DynamoDB (no endpoint_url needed with mock_aws)
 os.environ.setdefault("DYNAMODB_ENDPOINT_URL", "")
+# app.main creates MEDIA_LOCAL_PATH at import time (default "./uploads", i.e.
+# relative to the CWD) - keep it out of the repository.
+os.environ.setdefault("MEDIA_LOCAL_PATH", tempfile.mkdtemp(prefix="ai-mkt-test-uploads-"))
 
 # Table names used by the app under test.
-MAIN_TABLE = os.environ.setdefault("DYNAMODB_TABLE_MAIN", "marketing-main-test")
-CONTENT_TABLE = os.environ.setdefault("DYNAMODB_TABLE_CONTENT", "marketing-content-test")
-SCHEDULE_TABLE = os.environ.setdefault("DYNAMODB_TABLE_SCHEDULE", "marketing-schedule-test")
-ANALYTICS_TABLE = os.environ.setdefault("DYNAMODB_TABLE_ANALYTICS", "marketing-analytics-test")
-ACCOUNTS_TABLE = os.environ.setdefault("DYNAMODB_TABLE_ACCOUNTS", "marketing-accounts-test")
+# NOTE: these names must match the env vars read by app/config.py
+# (DYNAMODB_<NAME>_TABLE), otherwise the app talks to tables that were
+# never created in moto and every DynamoDB call fails with
+# ResourceNotFoundException.
+MAIN_TABLE = os.environ.setdefault("DYNAMODB_MAIN_TABLE", "marketing-main-test")
+CONTENT_TABLE = os.environ.setdefault("DYNAMODB_CONTENT_TABLE", "marketing-content-test")
+SCHEDULE_TABLE = os.environ.setdefault("DYNAMODB_SCHEDULE_TABLE", "marketing-schedule-test")
+ANALYTICS_TABLE = os.environ.setdefault("DYNAMODB_ANALYTICS_TABLE", "marketing-analytics-test")
+ACCOUNTS_TABLE = os.environ.setdefault("DYNAMODB_ACCOUNTS_TABLE", "marketing-accounts-test")
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +235,51 @@ def auth_headers(test_user_id: str, test_team_id: str) -> dict:
 # ---------------------------------------------------------------------------
 # Anthropic mock (prevents real API calls in unit/integration tests)
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# External ad-platform API mocks (respx)
+#
+# Each fixture yields a respx router scoped to one platform's hosts. Routes
+# are declared by the test; ANY request that is not explicitly mocked raises,
+# so a test can never reach the real network. `assert_all_called` is off so a
+# test may declare optional routes.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mock_meta_api():
+    """Intercept https://graph.facebook.com (Graph / Marketing API).
+
+    Usage: mock_meta_api.get("/v21.0/me/adaccounts").respond(json={...})
+    """
+    with respx.mock(base_url="https://graph.facebook.com", assert_all_called=False) as router:
+        yield router
+
+
+@pytest.fixture
+def mock_tiktok_api():
+    """Intercept the TikTok Business API (ads) at business-api.tiktok.com.
+
+    Usage: mock_tiktok_api.get("/open_api/v1.3/campaign/get/").respond(json={"code": 0, ...})
+    """
+    with respx.mock(base_url="https://business-api.tiktok.com", assert_all_called=False) as router:
+        yield router
+
+
+@pytest.fixture
+def mock_google_ads_api():
+    """Intercept Google Ads REST (googleads.googleapis.com) and Google OAuth
+    (oauth2.googleapis.com) - routes must use absolute URLs."""
+    with respx.mock(assert_all_called=False) as router:
+        yield router
+
+
+@pytest.fixture
+def mock_reddit_api():
+    """Intercept Reddit Ads (ads-api.reddit.com) and Reddit OAuth
+    (www.reddit.com) - routes must use absolute URLs."""
+    with respx.mock(assert_all_called=False) as router:
+        yield router
+
 
 @pytest.fixture
 def mock_anthropic(monkeypatch):

@@ -58,6 +58,25 @@ def create_table(name: str, spec: dict) -> None:
     print(f"  OK    {name}")
 
 
+def enable_ttl(name: str, attribute: str = "ttl") -> None:
+    """Enable DynamoDB TTL on `attribute` (numeric epoch seconds).
+
+    Idempotent: skips when TTL is already enabled. Used by the revocation
+    store (REVOKED_TOKEN#... items) so revoked-token markers are reaped
+    automatically once the underlying refresh token has expired anyway.
+    """
+    status = dynamodb.describe_time_to_live(TableName=name)
+    current = status.get("TimeToLiveDescription", {}).get("TimeToLiveStatus", "DISABLED")
+    if current in ("ENABLED", "ENABLING"):
+        print(f"  SKIP  TTL on {name} (already {current.lower()})")
+        return
+    dynamodb.update_time_to_live(
+        TableName=name,
+        TimeToLiveSpecification={"Enabled": True, "AttributeName": attribute},
+    )
+    print(f"  OK    TTL enabled on {name} (attribute: {attribute})")
+
+
 def main() -> None:
     print(f"Creating DynamoDB tables (endpoint: {DYNAMODB_ENDPOINT_URL})\n")
 
@@ -199,6 +218,9 @@ def main() -> None:
             },
         ],
     })
+
+    # Revoked-token markers carry a numeric `ttl` attribute (epoch seconds).
+    enable_ttl(MAIN_TABLE, attribute="ttl")
 
     print("\nAll tables ready.")
 

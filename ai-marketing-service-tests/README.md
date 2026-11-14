@@ -148,7 +148,7 @@ npm run test:e2e
 #### 0.1 Backend Test Setup
 - [x] `requirements.txt` — pytest, pytest-asyncio, pytest-cov, httpx, moto[dynamodb], respx, freezegun
 - [x] `pytest.ini` — `asyncio_mode = auto`, `testpaths = backend`, `filterwarnings = ignore::DeprecationWarning`
-- [ ] Configure `pytest-cov` with 80% coverage target for `app/services/` and `app/api/`
+- [x] Configure `pytest-cov` with 80% coverage target for `app/services/` and `app/api/` (see `.coveragerc`)
 
 #### 0.2 Backend Fixtures (`backend/conftest.py`)
 - [x] `dynamodb` fixture (function-scoped): `@mock_aws` context + all 5 tables created via `_create_tables()`
@@ -156,9 +156,10 @@ npm run test:e2e
 - [x] `auth_headers` fixture: returns `{ "X-User-Id": ..., "X-Team-Id": ... }` (dev bypass)
 - [x] `test_user_id` / `test_team_id` fixtures — unique UUIDs per test
 - [x] `mock_anthropic` fixture: monkeypatches `anthropic.Anthropic` with a stub returning canned text
-- [ ] `mock_meta_api` fixture: `respx.mock` intercepting `https://graph.facebook.com/`
-- [ ] `mock_tiktok_api` fixture: `respx.mock` intercepting `https://open.tiktokapis.com/`
-- [ ] `mock_higgsfield` fixture: `respx.mock` intercepting Higgsfield API
+- [x] `mock_meta_api` fixture: `respx.mock` intercepting `https://graph.facebook.com/`
+- [x] `mock_tiktok_api` fixture: `respx.mock` intercepting the TikTok **Business** API (`https://business-api.tiktok.com/`, used by the ads connector); the organic-publishing host `open.tiktokapis.com` has no backend code yet
+- [x] `mock_google_ads_api` / `mock_reddit_api` fixtures (extra: the ads connectors for these platforms exist)
+- [ ] `mock_higgsfield` fixture: `respx.mock` intercepting Higgsfield API *(blocked: no Higgsfield client exists in the backend yet, so there is no API surface/URL to mock)*
 
 #### 0.3 Entity Factories (`backend/fixtures/factories.py`)
 - [x] `make_user(**overrides)` → returns user profile dict (pk=USER#{id}, sk=PROFILE)
@@ -168,10 +169,10 @@ npm run test:e2e
 - [x] `make_project(**overrides)` → project item (pk=TEAM#{team_id}, sk=PROJECT#{id})
 - [x] `make_post(**overrides)` → content table post item
 - [x] `make_social_account(**overrides)` → accounts table item
-- [ ] `make_audience_analysis(project_id)` → analysis result dict
-- [ ] `make_idea(project_id, status="approved")` → idea dict
-- [ ] `make_schedule(post_id, team_id, scheduled_at=None)` → schedule item
-- [ ] `make_media(project_id)` → media record dict
+- [x] `make_audience_analysis(project_id)` → analysis result dict
+- [x] `make_idea(project_id, status="approved")` → idea dict
+- [x] `make_schedule(post_id, team_id, scheduled_at=None)` → schedule item
+- [x] `make_media(project_id)` → media record dict
 
 > **Note:** Factories return plain dicts matching the DynamoDB schema. Use `dynamodb.Table(TABLE).put_item(Item=make_user(...))` in tests to insert.
 
@@ -613,7 +614,7 @@ Gated by `USE_REAL_CLAUDE=true` env var. Run manually or in a scheduled weekly C
 - [x] `requirements.txt`, `pytest.ini`, `package.json`, `playwright.config.ts`, `tsconfig.json` — all bootstrapped
 - [ ] Set up GitHub Actions: on PR → run `pytest backend/unit` + `pytest backend/integration`
 - [ ] Set up nightly GitHub Actions: run E2E tests + AI behavior tests (`USE_REAL_CLAUDE=true`)
-- [ ] Configure pytest-cov: fail CI if coverage drops below 80% for `app/services/` and `app/api/`
+- [x] Configure pytest-cov: fail CI if coverage drops below 80% for `app/services/` and `app/api/` (`.coveragerc`; run `pytest --cov --cov-config=.coveragerc`)
 - [ ] Configure Playwright HTML reporter: publish test report as CI artifact
 - [ ] `scripts/capture_fixtures.py` — capture real Claude responses and save to fixture files
 - [ ] `CONTRIBUTING.md` — document how to run each test suite locally

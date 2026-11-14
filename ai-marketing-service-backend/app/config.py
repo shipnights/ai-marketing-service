@@ -10,7 +10,11 @@ except ImportError:
 
 _TRUE_STRINGS = ("1", "true", "yes", "on")
 _DEFAULT_CORS = "http://localhost:3000,http://localhost:3001"
-_DEFAULT_JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+# Access tokens are deliberately short-lived: they are validated against the
+# user record (token_version / tokens_valid_after) but not against the
+# revocation store, so a leaked token must expire quickly. Long-lived
+# sessions come from refresh-token rotation, not from long access tokens.
+_DEFAULT_JWT_EXPIRE_MINUTES = 30
 
 
 def _parse_bool(name: str, default: bool = False) -> bool:

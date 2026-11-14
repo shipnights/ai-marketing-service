@@ -1,0 +1,21 @@
+# Coverage gate for the backend suite (README Phase 0.1 / CI task).
+#
+# Run:   pytest --cov --cov-config=.coveragerc
+# Fails the run when line coverage of app/services + app/api drops below 80%.
+# Not part of pytest.ini addopts on purpose: running a single test file
+# locally would otherwise always "fail" the gate.
+
+[run]
+source =
+    app.services
+    app.api
+branch = False
+
+[report]
+fail_under = 80
+show_missing = True
+skip_covered = True
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:

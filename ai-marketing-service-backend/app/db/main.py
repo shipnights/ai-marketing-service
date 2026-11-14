@@ -26,6 +26,8 @@ dynamodb = boto3.resource("dynamodb", **_kwargs)
 
 __all__ = [
     "get_item",
+    "get_item_strict",
+    "increment_attr",
     "put_item",
     "put_items_batch",
     "update_item",
@@ -65,6 +67,19 @@ def get_item(pk: str, sk: str, *, table_name: str | None = None) -> dict[str, An
     except ClientError:
         logger.exception("get_item failed: pk=%s sk=%s", pk, sk)
         return None
+
+
+def get_item_strict(pk: str, sk: str, *, table_name: str | None = None) -> dict[str, Any] | None:
+    """Return a single item by pk+sk, or None if the item does not exist.
+
+    Unlike get_item(), this variant PROPAGATES ClientError instead of
+    swallowing it. Use it where "lookup failed" must not be mistaken for
+    "item absent" (e.g. security checks such as token revocation, readiness
+    probes).
+    """
+    t = _get_table(table_name)
+    response = t.get_item(Key={"pk": pk, "sk": sk})
+    return response.get("Item")
 
 
 def put_item(item: dict[str, Any], *, table_name: str | None = None) -> bool:
@@ -112,6 +127,49 @@ def update_item(
         return response.get("Attributes")
     except ClientError:
         logger.exception("update_item failed: pk=%s sk=%s", pk, sk)
+        return None
+
+
+def increment_attr(
+    pk: str,
+    sk: str,
+    attr: str,
+    *,
+    by: int = 1,
+    also_set: dict[str, Any] | None = None,
+    table_name: str | None = None,
+) -> dict[str, Any] | None:
+    """Atomically increment a numeric attribute (DynamoDB ADD) and optionally
+    SET additional attributes in the same write. Returns the updated item, or
+    None on failure.
+
+    ADD treats a missing attribute as 0, so an item without the counter ends
+    up at `by` after the first call.
+    """
+    t = _get_table(table_name)
+    try:
+        expr_attr_names: dict[str, str] = {"#ctr": attr}
+        expr_attr_values: dict[str, Any] = {":by": by}
+        update_expr = "ADD #ctr :by"
+
+        if also_set:
+            set_parts: list[str] = []
+            for i, (name, value) in enumerate(also_set.items()):
+                expr_attr_names[f"#set{i}"] = name
+                expr_attr_values[f":set{i}"] = _convert_floats(value)
+                set_parts.append(f"#set{i} = :set{i}")
+            update_expr += " SET " + ", ".join(set_parts)
+
+        response = t.update_item(
+            Key={"pk": pk, "sk": sk},
+            UpdateExpression=update_expr,
+            ExpressionAttributeNames=expr_attr_names,
+            ExpressionAttributeValues=expr_attr_values,
+            ReturnValues="ALL_NEW",
+        )
+        return response.get("Attributes")
+    except ClientError:
+        logger.exception("increment_attr failed: pk=%s sk=%s attr=%s", pk, sk, attr)
         return None
 
 

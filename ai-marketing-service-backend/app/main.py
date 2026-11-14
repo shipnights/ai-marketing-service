@@ -170,8 +170,10 @@ async def ready() -> dict:
     """Readiness probe. Optionally pings DynamoDB when ENABLE_READINESS_DB_CHECK=1."""
     if os.getenv("ENABLE_READINESS_DB_CHECK", "").strip().lower() in ("1", "true", "yes"):
         try:
-            from app.db.main import get_item
-            get_item("__ready__", "__check__")
+            # get_item_strict propagates DB errors; the non-strict get_item
+            # swallows them, which made this 503 path unreachable.
+            from app.db.main import get_item_strict
+            get_item_strict("__ready__", "__check__")
         except Exception as e:
             logger.warning("Readiness DB check failed: %s", e)
             raise HTTPException(status_code=503, detail="Dependency unavailable") from e
