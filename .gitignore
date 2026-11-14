@@ -34,3 +34,8 @@ uploads/
 .DS_Store
 .idea/
 .vscode/
+
+# Coverage data
+.coverage
+.coverage.*
+htmlcov/
