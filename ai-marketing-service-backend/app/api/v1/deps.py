@@ -120,33 +120,3 @@ def get_team_guard(team_id: str, current_user: CurrentUser = Depends(get_current
             detail={"message": "Access denied to this team", "code": "FORBIDDEN"},
         )
     return current_user
-
-
-def require_credits(cost: int) -> Depends:
-    """
-    Dependency factory that checks the team has at least `cost` AI credits.
-
-    Usage:
-        @router.post("/expensive")
-        def endpoint(current_user: CurrentUser = require_credits(5)):
-            ...
-    """
-    def _check(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-        from app.db.main import get_item
-        from app.db.tables import MAIN_TABLE
-
-        team = get_item(f"TEAM#{current_user.team_id}", "PROFILE", table_name=MAIN_TABLE)
-        balance = int((team or {}).get("ai_credits", 0))
-        if balance < cost:
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "error": "INSUFFICIENT_CREDITS",
-                    "message": f"Not enough AI credits. Need {cost}, have {balance}.",
-                    "required": cost,
-                    "balance": balance,
-                },
-            )
-        return current_user
-
-    return Depends(_check)

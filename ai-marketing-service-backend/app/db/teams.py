@@ -13,7 +13,7 @@ def _now() -> str:
 
 # ── Write ─────────────────────────────────────────────────────────────────────
 
-def create_team(team_id: str, team_name: str, owner_user_id: str, ai_credits: int = 500) -> bool:
+def create_team(team_id: str, team_name: str, owner_user_id: str) -> bool:
     now = _now()
     return put_item(
         {
@@ -22,7 +22,6 @@ def create_team(team_id: str, team_name: str, owner_user_id: str, ai_credits: in
             "team_id": team_id,
             "team_name": team_name,
             "owner_user_id": owner_user_id,
-            "ai_credits": ai_credits,
             "created_at": now,
             "updated_at": now,
         },
@@ -60,16 +59,6 @@ def update_member_role(team_id: str, user_id: str, new_role: str) -> dict[str, A
         {"role": new_role},
         table_name=MAIN_TABLE,
     )
-
-
-def deduct_team_credits(team_id: str, amount: int) -> bool:
-    """Subtract `amount` from team ai_credits. Returns True on success."""
-    team = get_team(team_id)
-    if not team:
-        return False
-    new_balance = max(0, int(team.get("ai_credits", 0)) - amount)
-    result = update_team(team_id, {"ai_credits": new_balance})
-    return result is not None
 
 
 # ── Read ──────────────────────────────────────────────────────────────────────

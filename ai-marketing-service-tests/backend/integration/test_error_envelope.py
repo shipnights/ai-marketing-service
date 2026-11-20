@@ -3,7 +3,6 @@
 Contract: every error is JSON shaped {status:"error", message, code, errors?}
 (app/errors.py). The frontend (src/lib/api-client.ts) depends on it:
   * 422 -> reads body.errors[].message and joins them
-  * 402 -> reads body.detail.error == "INSUFFICIENT_CREDITS", .required, .balance
   * any non-JSON error body is shown as "server returned an HTML page"
 """
 
@@ -13,9 +12,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app.api.v1.deps import CurrentUser, require_credits
-from app.db.tables import MAIN_TABLE
-from backend.fixtures.factories import make_team
 
 
 def _assert_envelope(body, code):
@@ -100,10 +96,6 @@ def handler_client(dynamodb):
     def unmapped():
         raise HTTPException(status_code=418, detail="teapot")
 
-    @app.post("/paid")
-    def paid(user: CurrentUser = require_credits(5)):
-        return {"ok": True}
-
     return TestClient(app)
 
 
@@ -122,18 +114,6 @@ def test_empty_detail_gets_generic_message(handler_client):
 
 def test_unmapped_status_gets_generic_code(handler_client):
     _assert_envelope(handler_client.get("/unmapped").json(), "ERROR")
-
-
-def test_402_matches_frontend_credit_error_contract(handler_client, dynamodb):
-    dynamodb.Table(MAIN_TABLE).put_item(Item=make_team(team_id="t1", ai_credits=2))
-    r = handler_client.post("/paid", headers={"X-User-Id": "u1", "X-Team-Id": "t1"})
-    assert r.status_code == 402
-    body = r.json()
-    _assert_envelope(body, "PAYMENT_REQUIRED")
-    # Exactly what api-client.ts reads into `creditError`:
-    assert body["detail"]["error"] == "INSUFFICIENT_CREDITS"
-    assert (body["detail"]["required"], body["detail"]["balance"]) == (5, 2)
-    assert body["detail"]["message"]
 
 
 # -- 500 handler ------------------------------------------------------------------------------

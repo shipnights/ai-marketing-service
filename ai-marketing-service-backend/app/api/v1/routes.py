@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import ads, auth, billing, integrations, projects
+from app.api.v1 import ads, auth, integrations, projects
 
 router = APIRouter()
 
@@ -10,7 +10,6 @@ router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 router.include_router(projects.router, prefix="/projects", tags=["Projects"])
 router.include_router(integrations.router, prefix="/integrations", tags=["Integrations"])
 router.include_router(ads.router, prefix="/ads", tags=["Ads"])
-router.include_router(billing.router, prefix="/billing", tags=["Billing"])
 
 # Future phases:
 # from app.api.v1 import analysis, ideas, posts, media, schedule, analytics

@@ -138,13 +138,12 @@ class TestRegisterStep3:
         assert "teamId" in data
         assert "tempToken" in data
 
-        # Team profile persisted with starter credits.
+        # Team profile persisted.
         team = dynamodb.Table(MAIN_TABLE).get_item(
             Key={"pk": f"TEAM#{data['teamId']}", "sk": "PROFILE"}
         ).get("Item")
         assert team is not None
         assert team["team_name"] == "Jane's Brand"
-        assert team["ai_credits"] == 500
         # The registering user is recorded as the team OWNER...
         owner_id = team["owner_user_id"]
         member = dynamodb.Table(MAIN_TABLE).get_item(

@@ -128,31 +128,6 @@ ADS_SYNC_LOOKBACK_DAYS = _parse_int("ADS_SYNC_LOOKBACK_DAYS", 30)
 # If unset, tokens are stored unencrypted (dev only — a warning is logged).
 TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "").strip()
 
-# ── Billing (Stripe) ──────────────────────────────────────────────────────────
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "").strip()
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
-
-# Stripe Price IDs per plan / billing interval (create these in the Stripe dashboard).
-STRIPE_PRICE_SOLO_MONTHLY = os.getenv("STRIPE_PRICE_SOLO_MONTHLY", "").strip()
-STRIPE_PRICE_SOLO_ANNUAL = os.getenv("STRIPE_PRICE_SOLO_ANNUAL", "").strip()
-STRIPE_PRICE_TEAM_MONTHLY = os.getenv("STRIPE_PRICE_TEAM_MONTHLY", "").strip()
-STRIPE_PRICE_TEAM_ANNUAL = os.getenv("STRIPE_PRICE_TEAM_ANNUAL", "").strip()
-STRIPE_PRICE_AGENCY_MONTHLY = os.getenv("STRIPE_PRICE_AGENCY_MONTHLY", "").strip()
-STRIPE_PRICE_AGENCY_ANNUAL = os.getenv("STRIPE_PRICE_AGENCY_ANNUAL", "").strip()
-
-# Stripe Price IDs for one-time AI credit top-up packs.
-STRIPE_PRICE_CREDITS_STARTER = os.getenv("STRIPE_PRICE_CREDITS_STARTER", "").strip()
-STRIPE_PRICE_CREDITS_GROWTH = os.getenv("STRIPE_PRICE_CREDITS_GROWTH", "").strip()
-STRIPE_PRICE_CREDITS_PRO = os.getenv("STRIPE_PRICE_CREDITS_PRO", "").strip()
-STRIPE_PRICE_CREDITS_AGENCY = os.getenv("STRIPE_PRICE_CREDITS_AGENCY", "").strip()
-
-# Where Stripe redirects after checkout / billing-portal sessions.
-_APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:3000").strip()
-STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", f"{_APP_BASE_URL}/dashboard/billing?status=success").strip()
-STRIPE_CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", f"{_APP_BASE_URL}/dashboard/billing?status=cancelled").strip()
-STRIPE_PORTAL_RETURN_URL = os.getenv("STRIPE_PORTAL_RETURN_URL", f"{_APP_BASE_URL}/dashboard/billing").strip()
-
 # ── Email ─────────────────────────────────────────────────────────────────────
 APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:3000").strip()
 EMAIL_FROM = os.getenv("EMAIL_FROM", "noreply@example.com").strip()

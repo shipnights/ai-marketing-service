@@ -89,10 +89,6 @@ def main() -> None:
     # TEAM#{team_id}     | PROJECT#{project_id} → project record
     # PROJECT#{project_id} | PROFILE        → direct project lookup (via GSI)
     # REVOKED_TOKEN#{jti} | REVOKED         → revoked refresh tokens
-    # TEAM#{team_id}      | BILLING         → subscription + stripe customer id
-    # TEAM#{team_id}      | CREDIT#{ts}#{seq} → AI-credit ledger entry
-    # STRIPECUST#{cid}    | TEAM            → stripe customer → team reverse lookup
-    # STRIPEEVENT#{eid}   | SEEN            → webhook idempotency marker
     create_table(MAIN_TABLE, {
         "BillingMode": "PAY_PER_REQUEST",
         "AttributeDefinitions": [

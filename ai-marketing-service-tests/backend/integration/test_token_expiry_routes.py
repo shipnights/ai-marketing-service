@@ -171,8 +171,7 @@ def test_reset_token_is_single_use(app_client, dynamodb):
 @pytest.mark.xfail(strict=True, reason=(
     "DEFECT: registration step-3 is not idempotent. Replaying it with the same "
     "wizard token (double-click, network retry, back button) creates a SECOND "
-    "team with 500 free AI credits and re-points the user at it, orphaning the "
-    "first team - also a free-credit farming vector."))
+    "team and re-points the user at it, orphaning the first team."))
 def test_register_step3_replay_does_not_create_second_team(app_client, dynamodb):
     token = app_client.post("/api/v1/auth/register/step-1",
                             json={"email": "twice@example.com", "password": "password1"}

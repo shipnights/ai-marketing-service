@@ -15,7 +15,7 @@ def _seed_project(dynamodb, team_id: str, **overrides) -> dict:
 
 
 def _seed_team(dynamodb, team_id: str):
-    team = make_team(team_id=team_id, ai_credits=500)
+    team = make_team(team_id=team_id)
     dynamodb.Table(MAIN_TABLE).put_item(Item=team)
     return team
 

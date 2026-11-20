@@ -51,15 +51,6 @@ class TestApiKeyGuard:
         assert r.json()["code"] == "INVALID_API_KEY"
 
     @pytest.mark.xfail(strict=True, reason=(
-        "BUG: /api/v1/billing/webhook is not exempt from the API-key guard. Stripe "
-        "cannot send X-API-Key, so every webhook is rejected with 401 when "
-        "REQUIRE_API_KEY is on (billing.py even says to exempt it)."))
-    def test_stripe_webhook_is_exempt(self, app_client):
-        r = app_client.post("/api/v1/billing/webhook", content=b"{}",
-                            headers={"stripe-signature": "t=1,v1=x"})
-        assert r.status_code != 401
-
-    @pytest.mark.xfail(strict=True, reason=(
         "BUG: OAuth callbacks (/api/v1/integrations/{platform}/callback) arrive as "
         "browser redirects from the ad platform without X-API-Key, so connecting "
         "any ad account fails with 401 when REQUIRE_API_KEY is on."))
