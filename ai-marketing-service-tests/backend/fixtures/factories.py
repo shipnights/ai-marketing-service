@@ -237,7 +237,7 @@ def make_media(project_id: str, **overrides) -> dict:
         "project_id": project_id,
         "kind": kind,                                   # image | video
         "source": overrides.pop("source", "generated"),  # generated | uploaded
-        "provider": overrides.pop("provider", "higgsfield"),
+        "provider": overrides.pop("provider", "example-provider"),
         "url": overrides.pop("url", f"http://localhost:8000/uploads/{media_id}.jpg"),
         "width": overrides.pop("width", 1080),
         "height": overrides.pop("height", 1350),

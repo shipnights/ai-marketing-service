@@ -101,7 +101,6 @@ JWT_ALGORITHM=HS256
 
 # Set to "true" to use real Claude API in AI behavior tests (costs real API usage — CI: always false)
 USE_REAL_CLAUDE=false
-USE_REAL_HIGGSFIELD=false
 
 # Backend + frontend URLs for E2E
 BACKEND_URL=http://localhost:8000
@@ -130,11 +129,11 @@ npm run test:e2e
 
 ## Key Testing Conventions
 
-- **Unit tests** mock all external services: Claude API (fixture JSON), Higgsfield, Meta, TikTok, storage. `moto` auto-mocks all `boto3` DynamoDB calls.
+- **Unit tests** mock all external services: Claude API (fixture JSON), Meta, TikTok, storage. `moto` auto-mocks all `boto3` DynamoDB calls.
 - **Integration tests** use `moto` for DynamoDB (no real AWS), but test the full HTTP request → route handler → DB path via `httpx.AsyncClient(app=app)`.
 - **AI fixture responses** are real Claude API responses captured once and stored as JSON files. Never hit the real API in CI.
 - **Factories** create consistent test data without duplication. Each test creates its own data and cleans up via `moto`'s context manager (tables are recreated per test).
-- **E2E tests** run against locally served backend + frontend, with `httpretty` or `respx` intercepting external API calls (Meta, TikTok, Higgsfield).
+- **E2E tests** run against locally served backend + frontend, with `httpretty` or `respx` intercepting external API calls (Meta, TikTok).
 
 ---
 
@@ -158,7 +157,7 @@ npm run test:e2e
 - [x] `mock_meta_api` fixture: `respx.mock` intercepting `https://graph.facebook.com/`
 - [x] `mock_tiktok_api` fixture: `respx.mock` intercepting the TikTok **Business** API (`https://business-api.tiktok.com/`, used by the ads connector); the organic-publishing host `open.tiktokapis.com` has no backend code yet
 - [x] `mock_google_ads_api` / `mock_reddit_api` fixtures (extra: the ads connectors for these platforms exist)
-- [ ] `mock_higgsfield` fixture: `respx.mock` intercepting Higgsfield API *(blocked: no Higgsfield client exists in the backend yet, so there is no API surface/URL to mock)*
+- [ ] A mock fixture for the image and video generation provider *(blocked: no provider is chosen yet, so there is no API to mock)*
 
 #### 0.3 Entity Factories (`backend/fixtures/factories.py`)
 - [x] `make_user(**overrides)` → returns user profile dict (pk=USER#{id}, sk=PROFILE)
@@ -257,10 +256,10 @@ npm run test:e2e
 - [ ] Caption regeneration saves to `caption_draft` only (not `caption_final`)
 
 #### 1.7 MediaService (`backend/unit/test_media_service.py`)
-- [ ] Image generation: calls HiggsField provider by default
-- [ ] Image generation: calls DALL-E provider when HiggsField raises
-- [ ] Video generation: calls HiggsField video provider
-- [ ] Video generation: falls back to Runway when HiggsField video raises
+- [ ] Image generation: calls the configured provider
+- [ ] Image generation: handles a provider error
+- [ ] Video generation: calls the configured provider
+- [ ] Video generation: handles a provider error
 - [ ] Stores generated file in storage, creates `Media` record in DynamoDB
 - [ ] Updates `Post.media_id` after successful generation
 

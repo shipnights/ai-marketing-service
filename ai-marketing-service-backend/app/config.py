@@ -74,10 +74,6 @@ AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET", "").strip()
 # ── AI ────────────────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 
-# ── Media Generation ──────────────────────────────────────────────────────────
-HIGGSFIELD_API_KEY = os.getenv("HIGGSFIELD_API_KEY", "").strip()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-
 # ── Social Publishing ─────────────────────────────────────────────────────────
 META_APP_ID = os.getenv("META_APP_ID", "").strip()
 META_APP_SECRET = os.getenv("META_APP_SECRET", "").strip()

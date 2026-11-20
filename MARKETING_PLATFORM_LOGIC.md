@@ -1,7 +1,7 @@
 # Marketing AI Platform — Logic & Build Plan
 **Created:** 2026-03-18
 **Priority:** Internal team use first → then public-facing app
-**Stack Recommendation:** Next.js (frontend) · Node.js/Python (backend) · PostgreSQL (DB) · Anthropic Claude API · Higgsfield AI (media gen) · Meta/TikTok APIs (publishing)
+**Stack Recommendation:** Next.js (frontend) · Node.js/Python (backend) · PostgreSQL (DB) · Anthropic Claude API · media-generation provider (not chosen yet) · Meta/TikTok APIs (publishing)
 
 > **⚠️ As-built note (2026-06-22):** the implemented backend is **FastAPI + DynamoDB**
 > (single-table design), **not** Postgres/Prisma. Treat the Postgres references below as
@@ -31,7 +31,7 @@ For Each Idea → AI Generates 5–10 Posts (text + visual brief)
        ↓
 User Reviews / Approves / Edits Posts
        ↓
-For Each Approved Post → Generate Image or Video (Higgsfield / DALL-E / Runway)
+For Each Approved Post → Generate Image or Video (provider not chosen yet)
        ↓
 User Final Approval → AI Writes Captions, Hashtags, CTAs
        ↓
@@ -217,8 +217,8 @@ Post {
 
 ### 4.1 Media Generation Providers
 - [ ] Build unified `MediaGenerationService` with provider abstraction:
-  - **Images:** Higgsfield AI (Soul), DALL-E 3, Stable Diffusion (fallback)
-  - **Videos:** Higgsfield AI (Image-to-Video, Speech-to-Video), Runway ML
+  - **Images:** a provider to be chosen
+  - **Videos:** a provider to be chosen
 - [ ] Provider selected per post based on type (image vs video) and quality settings
 - [ ] Queue-based generation (BullMQ) — don't block UI
 
@@ -230,7 +230,7 @@ Post {
 - [ ] User can also upload their own image to replace generated one
 
 ### 4.3 Video Generation Flow
-- [ ] Take visual brief + optional base image → send to video gen API (Higgsfield)
+- [ ] Take visual brief + optional base image → send to video gen API (provider to be chosen)
 - [ ] Queue video generation (takes 30s–3min)
 - [ ] Notify user via in-app notification when video is ready
 - [ ] Show video player in post card
@@ -416,8 +416,8 @@ Post {
 | Database | **DynamoDB** (single-table design) — *original plan said Postgres* |
 | Cache / Queues | Redis + BullMQ (planned) / scheduled worker for ad sync |
 | AI | Anthropic Claude API (claude-opus-4-8 / claude-sonnet-4-6) |
-| Image Gen | Higgsfield AI Soul, DALL-E 3 |
-| Video Gen | Higgsfield AI (Image-to-Video), Runway ML |
+| Image Gen | Provider not chosen yet |
+| Video Gen | Provider not chosen yet |
 | File Storage | Local dev → AWS S3 / Cloudflare R2 |
 | Auth | JWT (PyJWT) — bespoke, with dev header bypass |
 | Publishing APIs | Meta Graph API, TikTok for Developers |

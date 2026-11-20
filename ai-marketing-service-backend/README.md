@@ -6,7 +6,7 @@
 
 ## Overview
 
-REST API server for the AI Marketing Service platform. Handles all business logic, AI orchestration via Claude API, background job processing (media generation, auto-publishing via `FastAPI.BackgroundTasks`), and integrations with Meta Graph API, TikTok for Developers, Higgsfield AI, and DALL-E 3.
+REST API server for the AI Marketing Service platform. Handles all business logic, AI orchestration via Claude API, background job processing (media generation, auto-publishing via `FastAPI.BackgroundTasks`), and integrations with Meta Graph API and TikTok for Developers. The image and video generation provider has not been chosen yet.
 
 > **Personal use (2026-11-19):** this is a single-owner tool. Stripe billing, plans and AI-credit
 > metering were removed, so the planned AI features below are not credit-gated. Registration still
@@ -50,9 +50,7 @@ app/
 │
 ├── services/
 │   ├── anthropic_service.py     # Claude API wrapper (audience analysis, ideas, posts, insights)
-│   ├── media_service.py         # Higgsfield + DALL-E provider abstraction
-│   ├── higgsfield_service.py    # Higgsfield image + video generation
-│   ├── dalle_service.py         # DALL-E 3 image generation (fallback)
+│   ├── media_service.py         # image + video generation provider abstraction (provider not chosen yet)
 │   ├── scraper_service.py       # Playwright website scraper
 │   ├── storage_service.py       # Local → S3/R2 file storage abstraction
 │   ├── meta_publisher.py        # Meta Graph API publish logic (IG, FB, Reels, Stories)
@@ -196,10 +194,6 @@ DYNAMODB_ACCOUNTS_TABLE=ai-marketing-dev-accounts
 
 # AI
 ANTHROPIC_API_KEY=sk-ant-...
-
-# Media Generation
-HIGGSFIELD_API_KEY=...
-OPENAI_API_KEY=sk-...              # DALL-E 3 fallback
 
 # File Storage
 STORAGE_DRIVER=local               # local | s3 | r2
@@ -465,10 +459,7 @@ Every response uses this envelope:
 
 #### 4.1 Media Service (`app/services/media_service.py`)
 - [ ] Provider abstraction: `generate_image(prompt, quality) -> str (url)` and `generate_video(prompt, duration) -> str (url)`
-- [ ] `HiggsFieldImageProvider` — call Higgsfield API, poll for result, return CDN URL
-- [ ] `DalleProvider` — call OpenAI images API, return URL (fallback on Higgsfield error)
-- [ ] `HiggsFieldVideoProvider` — call Higgsfield video API, async poll for completion
-- [ ] Provider selection: try Higgsfield first, catch exception → fall back
+- [ ] Choose an image and video generation provider, then implement it behind the abstraction (call the API, poll for the result, return a URL)
 
 #### 4.2 Media Generation Routes (`app/api/v1/media.py`)
 - [ ] `POST /media/{post_id}/generate-image` — BackgroundTask (generate, store, update post.media_id) → return 202
