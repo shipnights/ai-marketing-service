@@ -26,7 +26,6 @@ ai-marketing-service-tests/
 │   │   ├── test_media_service.py
 │   │   ├── test_scraper_service.py
 │   │   ├── test_schedule_service.py
-│   │   ├── test_credits_service.py
 │   │   ├── test_meta_publisher.py
 │   │   ├── test_tiktok_publisher.py
 │   │   ├── test_jwt.py
@@ -100,7 +99,7 @@ DYNAMODB_ACCOUNTS_TABLE=ai-marketing-test-accounts
 JWT_SECRET=test-secret-that-is-at-least-32-characters-long
 JWT_ALGORITHM=HS256
 
-# Set to "true" to use real Claude API in AI behavior tests (costs credits — CI: always false)
+# Set to "true" to use real Claude API in AI behavior tests (costs real API usage — CI: always false)
 USE_REAL_CLAUDE=false
 USE_REAL_HIGGSFIELD=false
 
@@ -235,8 +234,6 @@ npm run test:e2e
 - [ ] Prompt includes scraped website data when provided
 - [ ] Parses Claude fixture response into correct `AudienceAnalysis` shape (all required keys present)
 - [ ] Saves result to DynamoDB (`save_audience_analysis` called with project_id)
-- [ ] Deducts exactly 5 credits via `deduct_credits`
-- [ ] Raises `AppError(402)` when credit balance < 5
 - [ ] Handles `anthropic.APIError` — raises `AppError(503)` with `CLAUDE_ERROR` code
 - [ ] Handles malformed JSON from Claude — raises `AppError(500)` with `PARSE_ERROR` code
 
@@ -246,7 +243,6 @@ npm run test:e2e
 - [ ] Each idea has all required keys: `title`, `concept`, `hook`, `platforms`, `content_type`, `estimated_impact`, `tone`, `reasoning`
 - [ ] `estimated_impact` is one of `low`, `medium`, `high` (no other values)
 - [ ] All ideas saved with `status = "pending"`
-- [ ] Deducts 5 credits on success
 - [ ] Re-prompt for regeneration includes rejected idea titles in the prompt
 
 #### 1.6 PostGenerationService (`backend/unit/test_post_generation.py`)
@@ -258,9 +254,7 @@ npm run test:e2e
 - [ ] All captions are under platform character limits (IG ≤ 2200, FB ≤ 63000, TT ≤ 2200)
 - [ ] Each post has non-empty `visual_brief`
 - [ ] All posts saved with `status = "draft"`
-- [ ] Deducts 3 credits per idea batch
 - [ ] Caption regeneration saves to `caption_draft` only (not `caption_final`)
-- [ ] Caption regeneration deducts 1 credit
 
 #### 1.7 MediaService (`backend/unit/test_media_service.py`)
 - [ ] Image generation: calls HiggsField provider by default
@@ -269,8 +263,6 @@ npm run test:e2e
 - [ ] Video generation: falls back to Runway when HiggsField video raises
 - [ ] Stores generated file in storage, creates `Media` record in DynamoDB
 - [ ] Updates `Post.media_id` after successful generation
-- [ ] Credit cost: 1 for image, 5 for 15s video, 15 for 60s video
-- [ ] Raises `AppError(402)` when credit balance insufficient before calling provider
 
 #### 1.8 ScheduleService (`backend/unit/test_schedule_service.py`)
 - [ ] `create_schedule` rejects `scheduled_at` in the past — raises `AppError(400)`
@@ -295,13 +287,7 @@ npm run test:e2e
 - [ ] `publish_video` — raises `PublishError` after timeout (mock status never complete)
 - [ ] Logs attempt to `PublishLog` on success and failure
 
-#### 1.11 CreditsService (`backend/unit/test_credits_service.py`)
-- [ ] `get_balance(team_id)` — returns credit balance from DynamoDB
-- [ ] `deduct_credits(team_id, 5, "audience_analysis", "proj_123")` — reduces balance by 5, logs usage
-- [ ] `deduct_credits` — raises `AppError(402)` if balance < cost
-- [ ] `log_credit_usage` — writes to DynamoDB with all required fields
-
-#### 1.12 ScraperService (`backend/unit/test_scraper_service.py`)
+#### 1.11 ScraperService (`backend/unit/test_scraper_service.py`)
 - [ ] Extracts title, meta description, h1, body text from valid HTML (use Playwright with local test HTML)
 - [ ] Returns empty fields (not exception) for unreachable URL
 - [ ] Raises timeout `AppError` after 10 seconds
@@ -366,7 +352,6 @@ All integration tests use `fastapi.testclient.TestClient(app)` + `@mock_aws` + f
 #### 2.1 Analysis Routes (`backend/integration/test_analysis_routes.py`)
 - [ ] `POST /api/v1/analysis/{id}/audience` — queues job → 202
 - [ ] `POST /api/v1/analysis/{id}/audience` — no audience analysis prereq → no error (runs directly)
-- [ ] `POST /api/v1/analysis/{id}/audience` — insufficient credits → 402
 - [ ] `GET /api/v1/analysis/{id}/audience` — before analysis → 404
 - [ ] `GET /api/v1/analysis/{id}/audience` — after analysis → 200, correct shape
 - [ ] `PUT /api/v1/analysis/{id}/audience` — saves user overrides without losing other fields
@@ -376,7 +361,6 @@ All integration tests use `fastapi.testclient.TestClient(app)` + `@mock_aws` + f
 #### 2.3 Analysis Routes (`backend/integration/test_analysis_routes.py`)
 - [ ] `POST /api/v1/analysis/{id}/audience` — queues job → 202
 - [ ] `POST /api/v1/analysis/{id}/audience` — no audience analysis prereq → no error (runs directly)
-- [ ] `POST /api/v1/analysis/{id}/audience` — insufficient credits → 402
 - [ ] `GET /api/v1/analysis/{id}/audience` — before analysis → 404
 - [ ] `GET /api/v1/analysis/{id}/audience` — after analysis → 200, correct shape
 - [ ] `PUT /api/v1/analysis/{id}/audience` — saves user overrides without losing other fields
@@ -384,7 +368,6 @@ All integration tests use `fastapi.testclient.TestClient(app)` + `@mock_aws` + f
 #### 2.3 Idea Routes (`backend/integration/test_idea_routes.py`)
 - [ ] `POST /api/v1/ideas/{id}/generate` — no audience analysis → 400
 - [ ] `POST /api/v1/ideas/{id}/generate` — audience analysis exists → 202
-- [ ] `POST /api/v1/ideas/{id}/generate` — insufficient credits → 402
 - [ ] `GET /api/v1/ideas/{id}` — returns empty list before generation
 - [ ] `GET /api/v1/ideas/{id}?status=approved` — returns only approved ideas
 - [ ] `PUT /api/v1/ideas/{id}/{idea_id}` — approve → status=approved
@@ -404,12 +387,11 @@ All integration tests use `fastapi.testclient.TestClient(app)` + `@mock_aws` + f
 - [ ] `PUT /api/v1/posts/{id}/{post_id}` — caption over platform limit → 200 with `over_limit_warning: true`
 - [ ] `POST /api/v1/posts/{id}/{post_id}/approve` → status=approved
 - [ ] `POST /api/v1/posts/{id}/{post_id}/reject` → status=rejected
-- [ ] `POST /api/v1/posts/{id}/{post_id}/regenerate-caption` → 202 (costs 1 credit)
+- [ ] `POST /api/v1/posts/{id}/{post_id}/regenerate-caption` → 202
 - [ ] `POST /api/v1/posts/{id}/bulk-approve` — updates all specified post statuses
 
 #### 2.6 Media Routes (`backend/integration/test_media_routes.py`)
 - [ ] `POST /api/v1/media/{post_id}/generate-image` — queues job → 202
-- [ ] `POST /api/v1/media/{post_id}/generate-image` — insufficient credits → 402
 - [ ] `POST /api/v1/media/{post_id}/generate-video` — queues job → 202
 - [ ] `GET /api/v1/media/{post_id}/status` — returns `queued` immediately after request
 - [ ] `POST /api/v1/media/{post_id}/upload` — valid JPG → 201, Media record created
@@ -447,7 +429,6 @@ All integration tests use `fastapi.testclient.TestClient(app)` + `@mock_aws` + f
 - [ ] `GET /api/v1/analytics/{project_id}/summary` — returns aggregate reach, best post
 - [ ] `GET /api/v1/analytics/{project_id}/insights` — no insights yet → 404
 - [ ] `POST /api/v1/analytics/{project_id}/insights/generate` — queues job → 202
-- [ ] `POST /api/v1/analytics/{project_id}/insights/generate` — insufficient credits (1) → 402
 
 ---
 
@@ -493,7 +474,6 @@ All integration tests use `fastapi.testclient.TestClient(app)` + `@mock_aws` + f
 - [ ] On 401 → calls `/api/v1/auth/refresh` → stores new access token → retries original request
 - [ ] On refresh 401 → clears localStorage → does NOT retry indefinitely
 - [ ] Concurrent 401s from multiple calls share one refresh request (not multiple)
-- [ ] On 402 → returns `{ creditError: true }` (does not throw)
 - [ ] Unwraps `{ status: "success", data: {...} }` → returns `data` only
 - [ ] Non-JSON response → throws `Error("Invalid response from server")`
 
@@ -590,7 +570,7 @@ All E2E tests use MSW (Mock Service Worker) in the browser to intercept API call
 
 ### PHASE 6 — AI Behavior Tests (Real Claude API — Weekly / Manual)
 
-Gated by `USE_REAL_CLAUDE=true` env var. Run manually or in a scheduled weekly CI job. Each test calls the real Claude API — costs credits.
+Gated by `USE_REAL_CLAUDE=true` env var. Run manually or in a scheduled weekly CI job. Each test calls the real Claude API and costs real API usage.
 
 - [ ] Audience analysis always returns all required top-level keys
 - [ ] `estimated_impact` in ideas is always exactly `"low"`, `"medium"`, or `"high"`

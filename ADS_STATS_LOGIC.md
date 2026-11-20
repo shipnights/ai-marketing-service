@@ -1,15 +1,21 @@
-# Ads, Unified Stats & Billing — Platform Logic & Build Plan
+# Ads & Unified Stats — Platform Logic & Build Plan
 **Created:** 2026-06-22
-**Status:** Phase A (read-only ads + billing foundation) implemented in this codebase
+**Status:** Phase A (read-only ads) implemented in this codebase
 **Extends:** [MARKETING_PLATFORM_LOGIC.md](MARKETING_PLATFORM_LOGIC.md)
 
-This document covers the **paid advertising** layer (Google, Reddit, Meta, TikTok),
-the **unified cross-platform stats** engine, and the **Stripe billing** system —
-how they work, the data model, the API, and the phased rollout.
+This document covers the **paid advertising** layer (Google, Reddit, Meta, TikTok) and the
+**unified cross-platform stats** engine: how they work, the data model, the API, and the
+phased rollout.
 
 > The original platform plan was *organic* social (create content → publish → engagement).
-> This layer adds *paid* ads: connect ad accounts, pull spend/performance, attribute
-> revenue (ROAS), and bill customers for the SaaS.
+> This layer adds *paid* ads: connect ad accounts, pull spend/performance, and attribute
+> revenue (ROAS).
+
+> **Change note (2026-11-19):** this file was `ADS_STATS_BILLING_LOGIC.md`. The Stripe billing
+> layer (plans, checkout, customer portal, webhooks, AI-credit ledger) was removed because the
+> project is now a personal-use tool: nothing is sold and nothing is metered. Sections that
+> described billing were deleted, and the Stripe Connect revenue idea in Phase C was replaced
+> by imported sales data.
 
 ---
 
@@ -19,7 +25,7 @@ how they work, the data model, the API, and the phased rollout.
 |----------|--------|
 | Deliverable | Full working implementation (not stubs) |
 | Ads depth | **Read-first, then management** — Phase A = connect + pull stats; management is a later phase |
-| Stripe role | **Both** — SaaS subscription billing + AI credits, *and* revenue/ROAS tracking |
+| Billing | **None** — personal tool, no plans, no AI-credit metering |
 | Platforms | Google Ads, Meta Ads, TikTok Ads, Reddit Ads (unified behind one interface) |
 
 ### Actual stack (corrects the older plan)
@@ -36,32 +42,31 @@ those real conventions.
                          │              Frontend (Next.js)           │
                          │  /dashboard/ads     unified stats dash    │
                          │  /dashboard/integrations  connections     │
-                         │  /dashboard/billing  plans · credits      │
                          └───────────────────┬──────────────────────┘
                                              │ apiCall<T>  (Bearer JWT)
                          ┌───────────────────▼──────────────────────┐
                          │            FastAPI  /api/v1               │
-                         │  integrations · ads · billing            │
-                         └───┬───────────────┬──────────────────┬───┘
-            ┌────────────────▼──┐   ┌─────────▼─────────┐  ┌─────▼────────┐
-            │  Ad Connectors    │   │  Ads Sync Worker  │  │ Stripe       │
-            │  (provider absn.) │   │  pull → normalize │  │ service +    │
-            │  google·meta·     │   │  → store          │  │ webhooks     │
-            │  tiktok·reddit    │   └─────────┬─────────┘  └─────┬────────┘
-            └─────────┬─────────┘             │                  │
-                      │   OAuth + Insights    │ normalized       │ subscription
-                      ▼                       ▼ AdInsight        ▼ + credits
-            ┌──────────────────┐   ┌────────────────────┐  ┌──────────────┐
-            │ Google/Meta/     │   │ DynamoDB ANALYTICS  │  │ DynamoDB     │
-            │ TikTok/Reddit    │   │ ADSTATS#{team}      │  │ MAIN TEAM#   │
-            │ Ads APIs         │   │                     │  │ BILLING/CREDIT│
-            └──────────────────┘   └────────────────────┘  └──────────────┘
+                         │  integrations · ads                       │
+                         └───┬───────────────────────────────┬──────┘
+            ┌────────────────▼──┐                   ┌─────────▼─────────┐
+            │  Ad Connectors    │                   │  Ads Sync Worker  │
+            │  (provider absn.) │                   │  pull → normalize │
+            │  google·meta·     │                   │  → store          │
+            │  tiktok·reddit    │                   └─────────┬─────────┘
+            └─────────┬─────────┘                             │
+                      │   OAuth + Insights                    │ normalized
+                      ▼                                       ▼ AdInsight
+            ┌──────────────────┐                   ┌────────────────────┐
+            │ Google/Meta/     │                   │ DynamoDB ANALYTICS  │
+            │ TikTok/Reddit    │                   │ ADSTATS#{team}      │
+            │ Ads APIs         │                   │                     │
+            └──────────────────┘                   └────────────────────┘
             tokens encrypted at rest in ACCOUNTS table (ADCONN#{platform})
 ```
 
 ---
 
-## 3. DATA MODEL (no new tables — reuses the existing 5)
+## 3. DATA MODEL (no new tables — reuses the existing ones)
 
 Everything fits the existing single-table design. New **item types** only:
 
@@ -81,17 +86,6 @@ Everything fits the existing single-table design. New **item types** only:
 Date-first sort key → a single `BETWEEN(since, until)` query returns the whole window,
 all platforms, in date order. Re-syncing a day overwrites the same key (idempotent).
 Only **raw summable metrics** are stored; ratios are recomputed on read.
-
-### MAIN table — billing
-| pk | sk | meaning |
-|----|----|---------|
-| `TEAM#{team_id}` | `BILLING` | plan, status, interval, period end, `stripe_customer_id` |
-| `TEAM#{team_id}` | `CREDIT#{ts}#{seq}` | append-only AI-credit ledger entry |
-| `STRIPECUST#{customer_id}` | `TEAM` | reverse lookup (customer → team) for webhooks |
-| `STRIPEEVENT#{event_id}` | `SEEN` | webhook idempotency marker |
-
-The spendable balance stays on `TEAM#/PROFILE.ai_credits` (the field the app already reads);
-`adjust_credits()` mutates it atomically (DynamoDB `ADD`) and writes a ledger row.
 
 ---
 
@@ -156,36 +150,17 @@ Sync is **idempotent** and safe to re-run; a scheduled worker calls the same `sy
 
 ---
 
-## 6. STRIPE BILLING (both roles)
+## 6. REVENUE / ROAS TRACKING
 
-### Role 1 — SaaS subscriptions + AI credits
-Plans (`services/billing/plans.py`):
-
-| Plan | Monthly | Annual/mo | Credits/mo | Ad accounts |
-|------|---------|-----------|-----------|-------------|
-| Solo | $49 | $39 | 50 | 3 |
-| Team | $99 | $79 | 200 | 10 |
-| Agency | $249 | $199 | 600 | unlimited |
-
-Plus one-time credit packs (Starter/Growth/Pro/Agency = 25/100/300/1000 credits).
-
-- **Checkout** is always hosted (Stripe Checkout) and initiated **server-side by plan key**
-  — the client never passes a price id.
-- **Webhooks are the source of truth** (`services/billing/webhooks.py`):
-  `invoice.paid` grants the plan's monthly credits; `subscription.*` syncs plan/status;
-  `checkout.session.completed` (credit packs) grants pack credits. All grants are
-  **idempotent** via `claim_event(event_id)`.
-- **Billing Portal** lets customers upgrade/cancel without us handling cards.
-
-### Role 2 — Revenue / ROAS tracking
 ROAS = `conversion_value / spend` is already computed from the ad platforms' own
-attributed conversion value. **Phase C** adds *true* ROAS by ingesting the customer's
-actual Stripe sales (via Stripe Connect / read access) and attributing revenue to
-campaigns — closing the loop between ad spend and real money in.
+attributed conversion value. **Phase C** adds *true* ROAS by importing your own sales
+data (a CSV upload or manual entry) and attributing revenue to campaigns — closing the
+loop between ad spend and real money in. This replaces the earlier idea of reading sales
+through Stripe Connect.
 
 ---
 
-## 7. API SURFACE (new endpoints, all under `/api/v1`)
+## 7. API SURFACE (all under `/api/v1`)
 
 ### Integrations
 ```
@@ -208,17 +183,6 @@ GET  /ads/{platform}/{account_id}/campaigns/live   live campaign list from platf
 POST /ads/sync?platform=&lookback_days=            pull fresh insights
 ```
 
-### Billing
-```
-GET  /billing/plans              catalog + stripe_configured + publishable_key
-GET  /billing/subscription       current plan/status/credits
-GET  /billing/credits            balance + ledger
-POST /billing/checkout           { plan_key, interval } → { url }
-POST /billing/credits/checkout   { pack_key } → { url }
-POST /billing/portal             → { url }
-POST /billing/webhook            Stripe events (signature-verified, no auth)
-```
-
 ---
 
 ## 8. SECURITY
@@ -226,21 +190,18 @@ POST /billing/webhook            Stripe events (signature-verified, no auth)
 - **OAuth tokens encrypted at rest** (Fernet, `TOKEN_ENCRYPTION_KEY`). Decrypted only in
   memory at sync time. Dev falls back to a flagged passthrough; **production must set the key**.
 - **OAuth `state` is a signed, expiring JWT** — prevents CSRF / connection hijack on callback.
-- **Stripe webhook** verified by signature; **exempt `/billing/webhook` from any API-key guard**.
-- **Credit grants are idempotent** (event-id dedupe) — webhook retries never double-grant.
-- **Stripe keys come from the environment only** (`STRIPE_SECRET_KEY`); `.gitignore` blocks all `.env` files.
+- **Keys come from the environment only**; `.gitignore` blocks all `.env` files.
 
 ---
 
 ## 9. PHASED IMPLEMENTATION PLAN
 
-### ✅ Phase A — Connections + Unified Stats + Billing foundation  *(implemented here)*
+### ✅ Phase A — Connections + Unified Stats foundation  *(implemented here)*
 - [x] Connector abstraction + Google/Meta/TikTok/Reddit connectors (read paths)
 - [x] OAuth connect/callback with signed state; encrypted token storage; account discovery
 - [x] Normalized insight schema + aggregation; sync worker; idempotent storage
 - [x] Reporting API (overview / campaigns / insights / sync)
-- [x] Stripe billing: plans, checkout, portal, webhooks, credit ledger
-- [x] Frontend: Ad Manager dashboard, Integrations manager, Billing page
+- [x] Frontend: Ad Manager dashboard, Integrations manager
 - [x] Config, env, `.gitignore`, table-comment docs
 
 ### Phase B — Scheduled sync + alerts *(~1 week)*
@@ -250,7 +211,7 @@ POST /billing/webhook            Stripe events (signature-verified, no auth)
 - [ ] Per-account sync cursors + backfill (90/180-day history import on first connect)
 
 ### Phase C — True ROAS / revenue attribution *(~1.5 weeks)*
-- [ ] Stripe Connect (read) to ingest customers' actual sales
+- [ ] Import actual sales (CSV upload or manual entry) to compare against ad spend
 - [ ] UTM / click-id capture (gclid, fbclid, ttclid) → attribution model (last-click first)
 - [ ] Blended ROAS dashboard: ad spend vs real revenue, by campaign/platform
 - [ ] Cohort/LTV view; CAC by channel
@@ -271,13 +232,13 @@ POST /billing/webhook            Stripe events (signature-verified, no auth)
 ## 10. IMPLEMENTED vs. NEEDS-CREDENTIALS
 
 **Works now (no external setup):** data model, connector framework, sync/aggregation logic,
-billing logic, all routes, frontend. Verified: all modules import; metric math correct;
-4 connectors register; 6 ads + 7 billing + 7 integration routes mount.
+all routes, frontend. Verified: all modules import; metric math correct; 4 connectors
+register; 6 ads + 7 integration routes mount.
 
 **Needs real credentials to exercise end-to-end:** each ad platform's app
-(client id/secret, Google developer token, TikTok Business app) and Stripe keys + Price IDs
-+ webhook secret. Set them in `.env` (see `.env.example`), set `TOKEN_ENCRYPTION_KEY`, then
-run `python scripts/create_tables.py` and connect a platform from `/dashboard/integrations`.
+(client id/secret, Google developer token, TikTok Business app). Set them in `.env`
+(see `.env.example`), set `TOKEN_ENCRYPTION_KEY`, then run `python scripts/create_tables.py`
+and connect a platform from `/dashboard/integrations`.
 
 **Connector endpoints to verify against live API docs** (flagged during build): Meta
 conversion `action_type` set per advertiser; Google REST camelCase vs gRPC; TikTok status
@@ -292,8 +253,6 @@ These are isolated to the four connector files and don't affect the framework.
 - **Budget pacing** — daily burn vs. monthly target with projected end-of-month spend.
 - **Cross-channel dedupe** — flag the same user converting on two platforms (double-counted ROAS).
 - **Creative leaderboard** — rank ad creatives by ROAS across platforms; auto-pause losers (Phase D).
-- **Client-ready PDF reports** — branded weekly/monthly ad performance export (agency tier).
+- **PDF reports** — weekly/monthly ad performance export.
 - **Slack/email digest** — "Yesterday: $X spend, Y conversions, Z ROAS" pushed each morning.
-- **Credit auto-top-up** — opt-in: when credits < threshold, auto-buy a pack (Stripe off-session).
 - **Anomaly guardrails** — auto-pause a campaign if CPA exceeds a ceiling (Phase D + alerts).
-```

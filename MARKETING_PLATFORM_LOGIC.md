@@ -7,10 +7,14 @@
 > (single-table design), **not** Postgres/Prisma. Treat the Postgres references below as
 > the original proposal; the live code uses DynamoDB. See `app/scripts/create_tables.py`.
 >
-> **➕ Paid Ads + Unified Stats + Billing** are now a first-class layer on top of the
-> organic workflow below — connect Google / Meta / TikTok / Reddit ad accounts, pull
-> cross-platform spend & performance, and bill via Stripe (subscriptions + AI credits +
-> ROAS). Full design & phased plan: **[ADS_STATS_BILLING_LOGIC.md](ADS_STATS_BILLING_LOGIC.md)**.
+> **➕ Paid Ads + Unified Stats** are now a first-class layer on top of the
+> organic workflow below — connect Google / Meta / TikTok / Reddit ad accounts and pull
+> cross-platform spend & performance (ROAS). Full design & phased plan:
+> **[ADS_STATS_LOGIC.md](ADS_STATS_LOGIC.md)**.
+>
+> **🧍 Personal use (2026-11-19):** this is now a single-owner tool. Stripe billing, plans and
+> AI-credit metering were removed. Any "credits", "plan", "agency tier" or "paid SaaS" wording
+> further down is from the original plan and no longer applies.
 
 ---
 
@@ -418,7 +422,6 @@ Post {
 | Auth | JWT (PyJWT) — bespoke, with dev header bypass |
 | Publishing APIs | Meta Graph API, TikTok for Developers |
 | **Ad APIs** | **Google Ads v17 · Meta Marketing v21 · TikTok Business v1.3 · Reddit Ads v3** |
-| **Billing** | **Stripe** (Checkout · Billing Portal · webhooks · AI-credit ledger) |
 | **Token security** | **Fernet** encryption at rest for OAuth tokens |
 | Web Scraping | Puppeteer / Playwright |
 | Mobile | React Native (Expo) |
@@ -489,7 +492,7 @@ Connect to CRMs, Slack, email, Notion, Airtable.
 
 ### J. Ad Campaign Creation → **now a first-class layer** ✅
 Connecting ad accounts and pulling unified stats (Google / Meta / TikTok / Reddit) is
-**implemented** — see [ADS_STATS_BILLING_LOGIC.md](ADS_STATS_BILLING_LOGIC.md). Extending
+**implemented** — see [ADS_STATS_LOGIC.md](ADS_STATS_LOGIC.md). Extending
 approved posts into *new* paid campaigns (budget, targeting, run duration, "Boost this post")
 is **Phase D — Ad campaign management** in that doc.
 

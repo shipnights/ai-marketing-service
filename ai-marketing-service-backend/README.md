@@ -8,6 +8,10 @@
 
 REST API server for the AI Marketing Service platform. Handles all business logic, AI orchestration via Claude API, background job processing (media generation, auto-publishing via `FastAPI.BackgroundTasks`), and integrations with Meta Graph API, TikTok for Developers, Higgsfield AI, and DALL-E 3.
 
+> **Personal use (2026-11-19):** this is a single-owner tool. Stripe billing, plans and AI-credit
+> metering were removed, so the planned AI features below are not credit-gated. Registration still
+> creates a team, which is simply the owner's one workspace.
+
 ---
 
 ## Project Structure
@@ -16,7 +20,7 @@ REST API server for the AI Marketing Service platform. Handles all business logi
 app/
 ├── main.py                      # FastAPI app, middleware, lifespan, router mount
 ├── config.py                    # All env vars (loaded via python-dotenv)
-├── constants.py                 # Platform limits, credit costs, status enums
+├── constants.py                 # Platform limits, status enums
 ├── errors.py                    # Standardized error responses { status, message, code }
 ├── middleware.py                # SecurityHeaders, ApiKey, RequestId middlewares
 ├── logging_config.py            # structlog setup
@@ -30,7 +34,7 @@ app/
 ├── db/
 │   ├── main.py                  # DynamoDB generic ops (get, put, update, delete, query)
 │   ├── tables.py                # Table name constants from env vars
-│   ├── users.py                 # User CRUD, credit balance ops
+│   ├── users.py                 # User CRUD
 │   ├── teams.py                 # Team CRUD, team membership
 │   ├── projects.py              # Project CRUD
 │   ├── analysis.py              # AudienceAnalysis storage
@@ -42,8 +46,7 @@ app/
 │   ├── metrics.py               # PostMetrics upsert
 │   ├── connected_accounts.py   # ConnectedAccount storage, token refresh
 │   ├── ad_accounts.py           # [ADS] ad-platform OAuth connections + ad accounts (encrypted tokens)
-│   ├── ad_stats.py              # [ADS] normalized ad insights storage + dashboard aggregations
-│   └── billing.py               # [BILLING] Stripe customer map, subscription, AI-credit ledger
+│   └── ad_stats.py              # [ADS] normalized ad insights storage + dashboard aggregations
 │
 ├── services/
 │   ├── anthropic_service.py     # Claude API wrapper (audience analysis, ideas, posts, insights)
@@ -56,15 +59,13 @@ app/
 │   ├── tiktok_publisher.py      # TikTok chunked upload + publish flow
 │   ├── email_service.py         # AWS SES (failure notifications)
 │   ├── schedule_service.py      # Conflict detection, bulk scheduling helpers
-│   ├── credits_service.py       # Credit balance check + deduction
-│   ├── ads/                     # [ADS] connector abstraction (base) + google/meta/tiktok/reddit
-│   │   ├── base.py · schema.py · registry.py · sync.py
-│   │   └── google.py · meta.py · tiktok.py · reddit.py
-│   └── billing/                 # [BILLING] plans catalog · stripe_service · webhooks
+│   └── ads/                     # [ADS] connector abstraction (base) + google/meta/tiktok/reddit
+│       ├── base.py · schema.py · registry.py · sync.py
+│       └── google.py · meta.py · tiktok.py · reddit.py
 │
 ├── api/v1/
 │   ├── routes.py                # All router includes
-│   ├── deps.py                  # Shared FastAPI Depends() (auth, team guard, credit check)
+│   ├── deps.py                  # Shared FastAPI Depends() (auth, team guard)
 │   ├── auth.py                  # Register, login, refresh, logout, email verify, password reset
 │   ├── projects.py              # Project CRUD endpoints
 │   ├── analysis.py              # Audience analysis endpoints
@@ -77,7 +78,6 @@ app/
 │   ├── quick_post.py            # Quick post mode (single or batch)
 │   ├── integrations.py          # [ADS] ad-platform OAuth connect/callback, account mgmt
 │   ├── ads.py                   # [ADS] unified reporting (overview/campaigns/insights/sync)
-│   ├── billing.py               # [BILLING] plans, checkout, portal, credits, Stripe webhook
 │   └── webhooks.py              # (Future) Zapier / Make.com outbound webhooks
 │
 └── prompts/
@@ -149,12 +149,6 @@ pk: TEAM#{team_id}           sk: ADACCT#{platform}#{account_id} (discovered ad a
 
 # Ad insights  [ADS]  (analytics table)
 pk: ADSTATS#{team_id}        sk: {date}#{platform}#{account_id}#{level}#{entity_id}
-
-# Billing & credit ledger  [BILLING]  (main table)
-pk: TEAM#{team_id}           sk: BILLING                        (subscription + stripe customer id)
-pk: TEAM#{team_id}           sk: CREDIT#{timestamp}#{seq}       (AI-credit ledger entry)
-pk: STRIPECUST#{customer_id} sk: TEAM                           (customer → team reverse lookup)
-pk: STRIPEEVENT#{event_id}   sk: SEEN                           (webhook idempotency)
 
 # platform ∈ google_ads · meta_ads · tiktok_ads · reddit_ads
 ```
@@ -337,16 +331,15 @@ Every response uses this envelope:
 - [x] `CurrentUser` dataclass `(user_id, team_id, email)`
 - [x] `get_current_user()` — decode JWT or use `X-User-Id`/`X-Team-Id` dev bypass when `ENABLE_DEV_AUTH_HEADER=true`
 - [x] `get_team_guard` — verify user belongs to team from route param (403 if mismatch)
-- [x] `require_credits(cost: int)` — factory returning `Depends` that checks credit balance → 402 if insufficient
 
 ---
 
 ### PHASE 1 — Auth & User Management
 
 #### 1.1 Auth Routes (`app/api/v1/auth.py`)
-- [x] `POST /auth/register/step-1` — email + password → validate unique email, hash password, store user, return temp token
-- [x] `POST /auth/register/step-2` — profile info (full_name, role) → update user, return temp token
-- [x] `POST /auth/register/step-3` — create team, add user as owner, return new temp token
+- [x] `POST /auth/register/step-1` — email + password → validate unique email, hash password, store user, return temp Token
+- [x] `POST /auth/register/step-2` — profile info (full_name, role) → update user, return temp Token
+- [x] `POST /auth/register/step-3` — create team, add user as owner, return new temp Token
 - [x] `POST /auth/register/step-4` — finalize registration, generate access + refresh tokens
 - [x] `POST /auth/login` — email + password → verify → return access + refresh tokens
 - [x] `POST /auth/refresh` — refresh token → validate JTI not revoked → revoke old JTI → return new token pair
@@ -363,13 +356,12 @@ Every response uses this envelope:
 - [x] `update_user(user_id, updates: dict)` → update item + stamps `updated_at`
 
 #### 1.3 Team DB (`app/db/teams.py`)
-- [x] `create_team(team_id, team_name, owner_user_id, ai_credits=500)` → put item
+- [x] `create_team(team_id, team_name, owner_user_id)` → put item
 - [x] `get_team(team_id)` → get item
 - [x] `add_team_member(team_id, user_id, role)` → put MEMBER# item
 - [x] `get_team_members(team_id)` → query all MEMBER# sk items
 - [x] `update_member_role(team_id, user_id, new_role)` → update item
 - [x] `remove_team_member(team_id, user_id)` → delete item
-- [x] `deduct_team_credits(team_id, amount)` → subtract from ai_credits field
 
 ---
 
@@ -419,8 +411,7 @@ Every response uses this envelope:
     "recommended_posting_times": { "instagram": [], "facebook": [], "tiktok": [] }
   }
   ```
-- [ ] Cost: 5 credits
-- [ ] Route `POST /analysis/{project_id}/audience` — check credits → run as BackgroundTask → return 202
+- [ ] Route `POST /analysis/{project_id}/audience` — run as BackgroundTask → return 202
 - [ ] Route `GET /analysis/{project_id}/audience` — return stored result
 - [ ] Route `PUT /analysis/{project_id}/audience` — save user overrides
 
@@ -431,9 +422,8 @@ Every response uses this envelope:
 
 #### 2.4 Idea Generation (`app/services/anthropic_service.py` + `app/prompts/idea_generation.py`)
 - [ ] `generate_ideas(project: dict, audience_analysis: dict) -> list[dict]` — builds prompt, calls Claude, returns 5–15 ideas each with: title, concept, hook, platforms, content_type, estimated_impact, tone, reasoning
-- [ ] Cost: 5 credits
 - [ ] Require audience analysis exists before running
-- [ ] Route `POST /ideas/{project_id}/generate` — check credits → BackgroundTask → return 202
+- [ ] Route `POST /ideas/{project_id}/generate` — BackgroundTask → return 202
 - [ ] Route `GET /ideas/{project_id}` — list ideas with optional status filter
 - [ ] Route `PUT /ideas/{project_id}/{idea_id}` — approve / reject / edit concept+title
 - [ ] Route `POST /ideas/{project_id}/regenerate` — re-prompt including rejected idea titles as context
@@ -453,14 +443,13 @@ Every response uses this envelope:
 - [ ] `generate_posts(idea: dict, audience: dict, platforms: list[str], tone: str) -> list[dict]` — for each platform generates: caption_draft, hashtags (platform count rules), cta, visual_brief, post_type
 - [ ] Platform hashtag rules enforced in prompt: IG 15–25, FB 3–5, TT 5–8
 - [ ] Caption length validated after generation (warn if over platform limit)
-- [ ] Cost: 3 credits per idea batch
 - [ ] Route `POST /posts/{project_id}/generate` — body: `{ idea_ids: list[str] }` → BackgroundTask → return 202
 - [ ] Route `GET /posts/{project_id}` — list posts, filter by idea_id / platform / status
 - [ ] Route `GET /posts/{project_id}/{post_id}`
 - [ ] Route `PUT /posts/{project_id}/{post_id}` — edit caption, hashtags, cta
 - [ ] Route `POST /posts/{project_id}/{post_id}/approve` — status → approved
 - [ ] Route `POST /posts/{project_id}/{post_id}/reject` — status → rejected
-- [ ] Route `POST /posts/{project_id}/{post_id}/regenerate-caption` — 1 credit, BackgroundTask
+- [ ] Route `POST /posts/{project_id}/{post_id}/regenerate-caption` — BackgroundTask
 - [ ] Route `POST /posts/{project_id}/bulk-approve` — body: `{ post_ids: list[str] }`
 
 #### 3.2 Posts DB (`app/db/posts.py`)
@@ -482,8 +471,8 @@ Every response uses this envelope:
 - [ ] Provider selection: try Higgsfield first, catch exception → fall back
 
 #### 4.2 Media Generation Routes (`app/api/v1/media.py`)
-- [ ] `POST /media/{post_id}/generate-image` — check 1 credit → BackgroundTask (generate, store, update post.media_id) → return 202
-- [ ] `POST /media/{post_id}/generate-video` — check credits (5 or 15) → BackgroundTask → return 202
+- [ ] `POST /media/{post_id}/generate-image` — BackgroundTask (generate, store, update post.media_id) → return 202
+- [ ] `POST /media/{post_id}/generate-video` — BackgroundTask → return 202
 - [ ] `GET /media/{post_id}/status` — return `{ status: queued|processing|complete|failed, media_url? }`
 - [ ] `POST /media/{post_id}/upload` — multipart upload, validate MIME + size, store, link to post
 - [ ] `GET /media/library/{project_id}` — list all media for project (paginated)
@@ -508,8 +497,7 @@ Every response uses this envelope:
 
 #### 5.1 Schedule Recommendation (`app/services/anthropic_service.py` + `app/prompts/schedule_recommendation.py`)
 - [ ] `recommend_schedule(project, audience_analysis) -> dict` — Claude returns best days, times per platform, frequency, content mix ratio
-- [ ] Cost: 2 credits
-- [ ] Route `POST /schedule/{project_id}/recommend` — check credits → call Claude → return recommendation
+- [ ] Route `POST /schedule/{project_id}/recommend` — call Claude → return recommendation
 
 #### 5.2 Schedule Routes (`app/api/v1/schedule.py`)
 - [ ] `POST /schedule/{post_id}` — body: `{ scheduled_at: ISO8601, platform: str }` → create Schedule, set post status=scheduled
@@ -596,9 +584,8 @@ Every response uses this envelope:
 
 #### 7.2 AI Insight Generation
 - [ ] `generate_performance_insights(project_id, metrics: list[dict]) -> str` — Claude prompt with last 30 days metrics → returns insight report text
-- [ ] Cost: 1 credit
 - [ ] Route `GET /analytics/{project_id}/insights` — return latest stored insight
-- [ ] Route `POST /analytics/{project_id}/insights/generate` — check credits → BackgroundTask
+- [ ] Route `POST /analytics/{project_id}/insights/generate` — BackgroundTask
 
 #### 7.3 Metrics DB (`app/db/metrics.py`)
 - [ ] `upsert_metrics(post_id, platform, metrics: dict)` → update item (create if not exists)
@@ -610,14 +597,13 @@ Every response uses this envelope:
 ### PHASE 8 — Extended Analysis
 
 #### 8.1 Social Profile Analysis
-- [ ] Route `POST /analysis/instagram` — body: `{ ig_user_id }` → fetch profile via Meta API → Claude analyzes → return report (3 credits)
-- [ ] Route `POST /analysis/facebook-page` — body: `{ page_id }` → page insights → Claude analyzes (3 credits)
-- [ ] Route `POST /analysis/tiktok` — body: `{ user_id }` → TikTok data → Claude analyzes (3 credits)
+- [ ] Route `POST /analysis/instagram` — body: `{ ig_user_id }` → fetch profile via Meta API → Claude analyzes → return report
+- [ ] Route `POST /analysis/facebook-page` — body: `{ page_id }` → page insights → Claude analyzes
+- [ ] Route `POST /analysis/tiktok` — body: `{ user_id }` → TikTok data → Claude analyzes
 
 #### 8.2 Marketing Plan Generation
 - [ ] `generate_marketing_plan(project, audience, plan_duration: int) -> dict` — Claude builds full 30/60/90-day plan
 - [ ] Output: content calendar, platform strategy, KPI targets, budget allocation
-- [ ] Cost: 10 credits (30-day), 20 credits (90-day)
 - [ ] Route `POST /plans/{project_id}/generate` — body: `{ plan_duration: 30 | 60 | 90 }`
 - [ ] Route `GET /plans/{project_id}` — return latest stored plan
 
@@ -625,12 +611,12 @@ Every response uses this envelope:
 
 ### PHASE 9 — Quick Post Mode
 
-- [ ] Route `POST /quick-post` — body: `{ media_id, platform, tone, project_id? }` → Claude generates caption + hashtags + CTA (1 credit)
+- [ ] Route `POST /quick-post` — body: `{ media_id, platform, tone, project_id? }` → Claude generates caption + hashtags + CTA
 - [ ] Route `POST /quick-post/batch` — body: `{ media_ids: list, platform, tone }` → batch captioning
 
 ---
 
-### PHASE A — Ads, Unified Stats & Billing ✅ (implemented — see [ADS_STATS_BILLING_LOGIC.md](../ADS_STATS_BILLING_LOGIC.md))
+### PHASE A — Ads & Unified Stats ✅ (implemented — see [ADS_STATS_LOGIC.md](../ADS_STATS_LOGIC.md))
 
 #### A.1 Ad connectors (`app/services/ads/`)
 - [x] `base.py` — `AdConnector` ABC + `TokenBundle` + connector exceptions
@@ -647,19 +633,13 @@ Every response uses this envelope:
 - [x] `GET /ads/overview` (totals + per-platform + timeseries) · `/ads/campaigns` · `/ads/insights` · `/ads/accounts`
 - [x] `POST /ads/sync` — manual pull (same `sync_team` a scheduled worker will call)
 
-#### A.4 Billing (`app/services/billing/`, `app/api/v1/billing.py`, `app/db/billing.py`)
-- [x] Plan catalog (Solo/Team/Agency) + credit packs; `GET /billing/plans` · `/subscription` · `/credits`
-- [x] Stripe Checkout (subscription + credit packs) · Billing Portal
-- [x] `POST /billing/webhook` — signature-verified; `invoice.paid`/subscription/checkout → idempotent credit grants
-- [x] Atomic AI-credit ledger (`adjust_credits`) on the existing `ai_credits` balance
-
-#### A.5 Security
+#### A.4 Security
 - [x] Fernet token encryption at rest (`app/utils/crypto.py`, `TOKEN_ENCRYPTION_KEY`)
 - [x] `.gitignore` blocks `.env` + plaintext key files
 
 > New env vars for this phase are documented in `.env.example` (Paid Ads platforms, Token
-> encryption, Billing/Stripe). Scheduled sync, alerts, true-ROAS attribution, and ad
-> *management* (write) are Phases B–E in `ADS_STATS_BILLING_LOGIC.md`.
+> encryption). Scheduled sync, alerts, true-ROAS attribution, and ad
+> *management* (write) are Phases B–E in `ADS_STATS_LOGIC.md`.
 
 ---
 
@@ -682,7 +662,7 @@ Every response uses this envelope:
 - [ ] Competitor monitoring — periodic scrape of competitor profiles, Claude analysis
 - [ ] Hashtag intelligence engine — track hashtag performance per niche
 - [ ] Zapier/Make.com outbound webhooks — fire on post.published, post.failed
-- [ ] Public API keys (Agency tier) — API key auth for external integrations
+- [ ] Public API keys — API key auth for external integrations
 - [ ] White-label client workspace isolation
 - [x] Ad platform integration (Google · Meta · TikTok · Reddit) — read/stats done; **management = Phase D**
 - [ ] Brand voice profile per project — injected into all Claude prompts
