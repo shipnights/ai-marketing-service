@@ -17,18 +17,10 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 // Types
 // ============================================================================
 
-export interface CreditError {
-  error: "INSUFFICIENT_CREDITS";
-  message: string;
-  required: number;
-  balance: number;
-}
-
 export interface ApiResponse<T> {
   data: T;
   error: string | null;
   status: number;
-  creditError?: CreditError;
 }
 
 // ============================================================================
@@ -95,7 +87,6 @@ async function _attemptTokenRefresh(): Promise<string | null> {
  * Generic fetch wrapper with:
  * - Automatic Bearer token injection from localStorage
  * - 401 → silent token refresh → retry once
- * - 402 (insufficient credits) → returns { creditError }
  * - 422 validation errors → joined error string
  * - Success envelope unwrapping: { status: "success", data: ... } → returns data
  * - Non-JSON / HTML error page detection
@@ -166,21 +157,6 @@ export async function apiCall<T>(
         const msg =
           (typeof detail === "string" && detail) || `HTTP ${response.status}`;
         return { data: null as unknown as T, error: msg, status: response.status };
-      }
-
-      // 402 → insufficient credits
-      if (
-        response.status === 402 &&
-        detail &&
-        typeof detail === "object" &&
-        detail.error === "INSUFFICIENT_CREDITS"
-      ) {
-        return {
-          data: null as unknown as T,
-          error: detail.message || "Insufficient AI credits",
-          status: response.status,
-          creditError: detail as CreditError,
-        };
       }
 
       // 422 → validation errors array

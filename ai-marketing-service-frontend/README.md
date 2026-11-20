@@ -18,7 +18,7 @@ Open http://localhost:3000. The only setting is `NEXT_PUBLIC_API_URL`, which alr
 points at `http://localhost:8000` in `.env.example`.
 
 `npm run build` makes a production build, which passes type checking. `npm run lint`
-currently reports 10 `react-hooks` errors in existing code (mostly state set inside
+currently reports 8 `react-hooks` errors in existing code (mostly state set inside
 effects); they do not stop the build or the app.
 
 ## What is there
@@ -27,9 +27,8 @@ effects); they do not stop the build or the app.
   registration wizard. Finishing step 4 verifies the email, so no email service is
   needed locally.
 - **Dashboard.** `/dashboard` lists projects. `/dashboard/ads` shows connected ad
-  accounts, `/dashboard/integrations` the connected platforms, and
-  `/dashboard/billing` plans and AI credits. Billing shows plans as not configured
-  until Stripe settings are added to the backend.
+  accounts and `/dashboard/integrations` the connected platforms. There is no billing
+  page: this is a personal tool and nothing is charged.
 - **Not built yet.** The home page is a placeholder. The Ideas, Posts, Schedule and
   Analytics links in the sidebar lead to pages that do not exist yet and return 404.
 - **Tests.** Jest and React Testing Library are configured, but there are no frontend
@@ -39,8 +38,8 @@ effects); they do not stop the build or the app.
 
 ```
 src/
-  app/          pages: / , /auth , /dashboard (+ ads, billing, integrations)
-  components/   Sidebar, CreditBalance, MetricCard, PlatformBadge, StatusBadge
+  app/          pages: / , /auth , /dashboard (+ ads, integrations)
+  components/   Sidebar, MetricCard, PlatformBadge, StatusBadge
   lib/          api-client.ts (fetch wrapper with token refresh), one *-api.ts per
                 backend area, storage.ts (localStorage keys), hooks/
 ```

@@ -41,15 +41,6 @@ export default function Sidebar() {
       </nav>
 
       <div className={styles.bottom}>
-        <Link
-          href="/dashboard/billing"
-          className={`${styles.navItem} ${
-            pathname.startsWith("/dashboard/billing") ? styles.active : ""
-          }`}
-        >
-          <span className={styles.navIcon}>▤</span>
-          <span className={styles.navLabel}>Billing</span>
-        </Link>
         <Link href="/dashboard/settings" className={styles.navItem}>
           <span className={styles.navIcon}>⚙</span>
           <span className={styles.navLabel}>Settings</span>

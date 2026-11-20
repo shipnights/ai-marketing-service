@@ -11,22 +11,6 @@
   overflow: hidden;
 }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  height: 56px;
-  padding: 0 24px;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.topbarRight {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .content {
   flex: 1;
   overflow-y: auto;
